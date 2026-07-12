@@ -223,13 +223,13 @@ const createTables = () => {
 
     const insertUser = db.prepare(`
       INSERT INTO users (id, name, email, password, role, phone, is_active, created_by, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
     `);
 
     users.forEach(u => {
       const exists = db.prepare('SELECT COUNT(*) as c FROM users WHERE LOWER(email) = LOWER(?)').get(u.email).c;
       if (exists === 0) {
-        insertUser.run(u.id, u.name, u.email.toLowerCase(), u.password, u.role, u.phone, now(), now());
+        insertUser.run(u.id, u.name, u.email.toLowerCase(), u.password, u.role, u.phone, null, now(), now());
         logger.info(`👤 Seeded user: ${u.email}`);
       }
     });
