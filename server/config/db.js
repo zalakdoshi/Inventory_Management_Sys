@@ -202,6 +202,105 @@ const createTables = () => {
     );
   `);
   logger.info('✅ All SQLite tables ready.');
+
+  // Auto-seed default users if table is empty
+  const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
+  if (userCount === 0) {
+    logger.info('🌱 Database is empty. Seeding default data...');
+    const bcrypt = require('bcryptjs');
+    const { v4: uuidv4 } = require('uuid');
+    
+    const hash = (pw) => bcrypt.hashSync(pw, 10);
+    const now = () => new Date().toISOString();
+
+    // 1. Seed Users
+    const users = [
+      { id: uuidv4(), name: 'Admin User', email: 'admin@vardhman.com', password: hash('admin123'), role: 'admin', phone: '+91 9998160084' },
+      { id: uuidv4(), name: 'Ravi Patel', email: 'purchaser@vardhman.com', password: hash('purchaser123'), role: 'purchaser', phone: '+91 9876543210' },
+      { id: uuidv4(), name: 'Suresh Kumar', email: 'salesman@vardhman.com', password: hash('salesman123'), role: 'salesman', phone: '+91 9123456789' },
+      { id: uuidv4(), name: 'Priya Shah', email: 'salesman2@vardhman.com', password: hash('salesman123'), role: 'salesman', phone: '+91 9012345678' }
+    ];
+
+    const insertUser = db.prepare(`
+      INSERT INTO users (id, name, email, password, role, phone, is_active, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `);
+
+    users.forEach(u => insertUser.run(u.id, u.name, u.email.toLowerCase(), u.password, u.role, u.phone, now(), now()));
+    logger.info(`👥 Seeded ${users.length} users.`);
+
+    // 2. Seed Suppliers
+    const suppliers = [
+      {
+        id: uuidv4(),
+        name: 'Gujarat Biogas Equipments Pvt Ltd',
+        contact_person: 'Ramesh Patel',
+        phone: '+91 9876543210',
+        email: 'gujarat.biogas@example.com',
+        gstin: '24AABCG1234A1Z5',
+        address: JSON.stringify({ street: 'GIDC Estate', city: 'Anand', state: 'Gujarat', pincode: '388001' }),
+        categories: JSON.stringify(['Biogas Components', 'Storage Equipment']),
+        notes: '',
+        created_by: users[0].id
+      },
+      {
+        id: uuidv4(),
+        name: 'CNG Solutions India',
+        contact_person: 'Mahesh Shah',
+        phone: '+91 9988776655',
+        email: 'cngsolutions@example.com',
+        gstin: '24AABCC5678A1Z3',
+        address: JSON.stringify({ street: 'Industrial Area', city: 'Vadodara', state: 'Gujarat', pincode: '390001' }),
+        categories: JSON.stringify(['CNG Equipment', 'Compressors']),
+        notes: '',
+        created_by: users[0].id
+      },
+      {
+        id: uuidv4(),
+        name: 'Pipe & Valve Traders',
+        contact_person: 'Suresh Mehta',
+        phone: '+91 9123456789',
+        email: 'pipetrades@example.com',
+        gstin: '24AABCP9012A1Z1',
+        address: JSON.stringify({ street: 'Market Yard', city: 'Surat', state: 'Gujarat', pincode: '395001' }),
+        categories: JSON.stringify(['Pipes', 'Valves', 'Fittings']),
+        notes: '',
+        created_by: users[0].id
+      }
+    ];
+
+    const insertSupplier = db.prepare(`
+      INSERT INTO suppliers (id, name, contact_person, phone, email, gstin, address, categories, is_active, notes, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+    `);
+
+    suppliers.forEach(s => insertSupplier.run(s.id, s.name, s.contact_person, s.phone, s.email, s.gstin, s.address, s.categories, s.notes, s.created_by, now(), now()));
+    logger.info(`🏭 Seeded ${suppliers.length} suppliers.`);
+
+    // 3. Seed Products
+    const genProductId = () => 'PRD-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase();
+    const products = [
+      { name: 'Biogas Plant Inlet Tank 1000L', category: 'Biogas Components', sellingPrice: 28500, purchasePrice: 22000, quantity: 15, unit: 'Piece', gstPercentage: 18, hsnCode: '8419', reorderLevel: 5, supplier_id: suppliers[0].id, description: 'Heavy duty HDPE inlet tank for 1000L biogas plants', barcode: 'BG001' },
+      { name: 'Dome Gas Holder 500L', category: 'Biogas Components', sellingPrice: 18000, purchasePrice: 14000, quantity: 20, unit: 'Piece', gstPercentage: 18, hsnCode: '8419', reorderLevel: 8, supplier_id: suppliers[0].id, description: 'Fixed dome gas holder for medium biogas plants', barcode: 'BG002' },
+      { name: 'Biogas Burner Single Nozzle', category: 'Biogas Components', sellingPrice: 850, purchasePrice: 600, quantity: 120, unit: 'Piece', gstPercentage: 12, hsnCode: '8419', reorderLevel: 30, supplier_id: suppliers[0].id, description: 'Cast iron single nozzle biogas burner', barcode: 'BG003' },
+      { name: 'CNG Cylinder Type I 50L', category: 'CNG Equipment', sellingPrice: 12500, purchasePrice: 9500, quantity: 25, unit: 'Piece', gstPercentage: 18, hsnCode: '8412', reorderLevel: 5, supplier_id: suppliers[1].id, description: 'BIS approved 50L CNG cylinder, 200 bar', barcode: 'CNG001' },
+      { name: 'CNG Pressure Regulator 200bar', category: 'CNG Equipment', sellingPrice: 3800, purchasePrice: 2800, quantity: 40, unit: 'Piece', gstPercentage: 18, hsnCode: '8412', reorderLevel: 10, supplier_id: suppliers[1].id, description: '200 bar to 4 bar CNG pressure regulator', barcode: 'CNG002' },
+      { name: 'MS Seamless Pipe 1 inch (6m)', category: 'Pipes', sellingPrice: 1200, purchasePrice: 900, quantity: 200, unit: 'Piece', gstPercentage: 18, hsnCode: '7304', reorderLevel: 50, supplier_id: suppliers[2].id, description: 'MS seamless pipe 1 inch schedule 40', barcode: 'PIPE002' }
+    ];
+
+    const insertProduct = db.prepare(`
+      INSERT INTO products (id, product_id, name, category, selling_price, purchase_price, quantity, unit, supplier_id, gst_percentage, hsn_code, barcode, description, image, reorder_level, status, created_by, updated_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, ?, 'active', ?, ?, ?, ?)
+    `);
+
+    products.forEach(p => {
+      const pid = uuidv4();
+      const pno = genProductId();
+      insertProduct.run(pid, pno, p.name, p.category, p.sellingPrice, p.purchasePrice, p.quantity, p.unit, p.supplier_id, p.gstPercentage, p.hsnCode, p.barcode, p.description, p.reorderLevel, users[0].id, users[0].id, now(), now());
+    });
+    logger.info(`📦 Seeded ${products.length} products.`);
+    logger.info('🌱 SQLite Seeding finished successfully.');
+  }
 };
 
 module.exports = { connectDB, getDb };
