@@ -203,10 +203,10 @@ const createTables = () => {
   `);
   logger.info('✅ All SQLite tables ready.');
 
-  // Auto-seed default users if table is empty
-  const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
-  if (userCount === 0) {
-    logger.info('🌱 Database is empty. Seeding default data...');
+  // Auto-seed default users if purchaser doesn't exist
+  const purchaserExists = db.prepare('SELECT COUNT(*) as c FROM users WHERE LOWER(email) = LOWER(?)').get('purchaser@vardhman.com').c;
+  if (purchaserExists === 0) {
+    logger.info('🌱 Seeding default database users and products...');
     const bcrypt = require('bcryptjs');
     const { v4: uuidv4 } = require('uuid');
     
@@ -226,8 +226,16 @@ const createTables = () => {
       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
     `);
 
-    users.forEach(u => insertUser.run(u.id, u.name, u.email.toLowerCase(), u.password, u.role, u.phone, now(), now()));
-    logger.info(`👥 Seeded ${users.length} users.`);
+    users.forEach(u => {
+      const exists = db.prepare('SELECT COUNT(*) as c FROM users WHERE LOWER(email) = LOWER(?)').get(u.email).c;
+      if (exists === 0) {
+        insertUser.run(u.id, u.name, u.email.toLowerCase(), u.password, u.role, u.phone, now(), now());
+        logger.info(`👤 Seeded user: ${u.email}`);
+      }
+    });
+
+    // Find admin user ID to associate with created suppliers/products
+    const adminId = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('admin')?.id || users[0].id;
 
     // 2. Seed Suppliers
     const suppliers = [
@@ -241,7 +249,7 @@ const createTables = () => {
         address: JSON.stringify({ street: 'GIDC Estate', city: 'Anand', state: 'Gujarat', pincode: '388001' }),
         categories: JSON.stringify(['Biogas Components', 'Storage Equipment']),
         notes: '',
-        created_by: users[0].id
+        created_by: adminId
       },
       {
         id: uuidv4(),
@@ -253,7 +261,7 @@ const createTables = () => {
         address: JSON.stringify({ street: 'Industrial Area', city: 'Vadodara', state: 'Gujarat', pincode: '390001' }),
         categories: JSON.stringify(['CNG Equipment', 'Compressors']),
         notes: '',
-        created_by: users[0].id
+        created_by: adminId
       },
       {
         id: uuidv4(),
@@ -265,7 +273,7 @@ const createTables = () => {
         address: JSON.stringify({ street: 'Market Yard', city: 'Surat', state: 'Gujarat', pincode: '395001' }),
         categories: JSON.stringify(['Pipes', 'Valves', 'Fittings']),
         notes: '',
-        created_by: users[0].id
+        created_by: adminId
       }
     ];
 
@@ -296,7 +304,7 @@ const createTables = () => {
     products.forEach(p => {
       const pid = uuidv4();
       const pno = genProductId();
-      insertProduct.run(pid, pno, p.name, p.category, p.sellingPrice, p.purchasePrice, p.quantity, p.unit, p.supplier_id, p.gstPercentage, p.hsnCode, p.barcode, p.description, p.reorderLevel, users[0].id, users[0].id, now(), now());
+      insertProduct.run(pid, pno, p.name, p.category, p.sellingPrice, p.purchasePrice, p.quantity, p.unit, p.supplier_id, p.gstPercentage, p.hsnCode, p.barcode, p.description, p.reorderLevel, adminId, adminId, now(), now());
     });
     logger.info(`📦 Seeded ${products.length} products.`);
     logger.info('🌱 SQLite Seeding finished successfully.');
